@@ -1,0 +1,178 @@
+{
+  "version": "1.0",
+  "categories": [
+    {
+      "id": "tiling-wm",
+      "name": "tiling window managers",
+      "description": "configs for i3, sway, bspwm, and other tiling window managers"
+    },
+    {
+      "id": "vim-wizards",
+      "name": "vim/neovim experts",
+      "description": "vim and neovim configurations from the pros"
+    },
+    {
+      "id": "terminal-lovers",
+      "name": "terminal enthusiasts",
+      "description": "terminal emulators, shells, and terminal multiplexers"
+    },
+    {
+      "id": "minimalists",
+      "name": "minimalist setups",
+      "description": "clean, simple, distraction-free configurations"
+    }
+  ],
+  "creators": [
+    {
+      "id": "theprimeagen",
+      "name": "ThePrimeagen",
+      "github": "ThePrimeagen",
+      "repo": "https://github.com/ThePrimeagen/.dotfiles",
+      "categories": ["vim-wizards", "terminal-lovers"],
+      "description": "netflix engineer, vim enthusiast, and content creator",
+      "dotfiles": [
+        {
+          "id": "nvim",
+          "name": "neovim",
+          "description": "neovim config with custom lua setup",
+          "paths": [".config/nvim"],
+          "dependencies": ["neovim"]
+        },
+        {
+          "id": "tmux",
+          "name": "tmux",
+          "description": "tmux configuration with vim-like bindings",
+          "paths": [".tmux.conf"],
+          "dependencies": ["tmux"]
+        }
+      ]
+    },
+    {
+      "id": "tjdevries",
+      "name": "TJ DeVries",
+      "github": "tjdevries",
+      "repo": "https://github.com/tjdevries/config_manager",
+      "categories": ["vim-wizards", "terminal-lovers"],
+      "description": "neovim core contributor and plugin author",
+      "dotfiles": [
+        {
+          "id": "nvim",
+          "name": "neovim",
+          "description": "neovim config from a core contributor",
+          "paths": [".config/nvim"],
+          "dependencies": ["neovim"]
+        }
+      ]
+    },
+    {
+      "id": "bashbunni",
+      "name": "bashbunni",
+      "github": "bashbunni",
+      "repo": "https://github.com/bashbunni/dotfiles",
+      "categories": ["terminal-lovers", "minimalists"],
+      "description": "developer advocate at charm, terminal ui enthusiast",
+      "dotfiles": [
+        {
+          "id": "tmux",
+          "name": "tmux",
+          "description": "minimalist tmux setup",
+          "paths": [".tmux.conf"],
+          "dependencies": ["tmux"]
+        },
+        {
+          "id": "alacritty",
+          "name": "alacritty",
+          "description": "alacritty terminal emulator config",
+          "paths": [".config/alacritty/alacritty.yml"],
+          "dependencies": ["alacritty"]
+        }
+      ]
+    },
+    {
+      "id": "dreamsofcode",
+      "name": "dreamsofcode",
+      "github": "dreamsofcode-io",
+      "repo": "https://github.com/dreamsofcode-io/dotfiles",
+      "categories": ["terminal-lovers", "tiling-wm"],
+      "description": "content creator focused on developer tooling",
+      "dotfiles": [
+        {
+          "id": "nvim",
+          "name": "neovim",
+          "description": "well-documented neovim configuration",
+          "paths": [".config/nvim"],
+          "dependencies": ["neovim"]
+        },
+        {
+          "id": "tmux",
+          "name": "tmux",
+          "description": "tmux config with catppuccin theme",
+          "paths": [".config/tmux/tmux.conf"],
+          "dependencies": ["tmux"]
+        }
+      ]
+    },
+    {
+      "id": "josean",
+      "name": "josean-dev",
+      "github": "josean-dev",
+      "repo": "https://github.com/josean-dev/dev-environment-files",
+      "categories": ["vim-wizards", "terminal-lovers"],
+      "description": "content creator with beginner-friendly configs",
+      "dotfiles": [
+        {
+          "id": "nvim",
+          "name": "neovim",
+          "description": "beginner-friendly neovim setup",
+          "paths": [".config/nvim"],
+          "dependencies": ["neovim"]
+        },
+        {
+          "id": "tmux",
+          "name": "tmux",
+          "description": "simple tmux configuration",
+          "paths": [".config/tmux/tmux.conf"],
+          "dependencies": ["tmux"]
+        },
+        {
+          "id": "zsh",
+          "name": "zsh",
+          "description": "zsh shell configuration",
+          "paths": [".zshrc"],
+          "dependencies": ["zsh"]
+        }
+      ]
+    },
+    {
+      "id": "christitustech",
+      "name": "ChrisTitusTech",
+      "github": "ChrisTitusTech",
+      "repo": "https://github.com/ChrisTitusTech/titus-dotfiles",
+      "categories": ["tiling-wm", "terminal-lovers"],
+      "description": "system admin and linux content creator",
+      "dotfiles": [
+        {
+          "id": "i3",
+          "name": "i3",
+          "description": "i3 window manager configuration",
+          "paths": [".config/i3/config"],
+          "dependencies": ["i3-wm"]
+        },
+        {
+          "id": "polybar",
+          "name": "polybar",
+          "description": "polybar status bar config",
+          "paths": [".config/polybar"],
+          "dependencies": ["polybar"]
+        },
+        {
+          "id": "zsh",
+          "name": "zsh",
+          "description": "zsh with oh-my-zsh",
+          "paths": [".zshrc"],
+          "dependencies": ["zsh", "oh-my-zsh"]
+        }
+      ]
+    }
+  ]
+}

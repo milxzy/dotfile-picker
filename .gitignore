@@ -1,0 +1,40 @@
+# Build artifacts
+bin/
+build/
+dist/
+coverage.out
+coverage/
+*.out
+*.test
+*.prof
+*.pprof
+
+# Compiled binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Dependency directories
+vendor/
+
+# Environment and local config
+.env
+.env.*
+*.local
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# IDE and editor metadata
+.vscode/
+.idea/
+*.iml
+
+# OS artifacts
+.DS_Store
+Thumbs.db
