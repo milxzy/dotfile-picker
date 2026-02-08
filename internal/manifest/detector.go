@@ -61,17 +61,18 @@ func DetectStructure(repoPath string) RepoStructure {
 
 // ResolveFilePath tries to find a dotfile in the repo
 // uses the detected structure to search intelligently
+// accepts both files and directories
 func ResolveFilePath(repoPath, relativePath string, structure RepoStructure) (string, bool) {
 	// first try the exact path from manifest
 	exactPath := filepath.Join(repoPath, relativePath)
-	if fileExists(exactPath) {
+	if pathExists(exactPath) {
 		return exactPath, true
 	}
 
 	// try without leading dot if it has one
 	if strings.HasPrefix(filepath.Base(relativePath), ".") {
 		noDotPath := filepath.Join(repoPath, strings.TrimPrefix(filepath.Base(relativePath), "."))
-		if fileExists(noDotPath) {
+		if pathExists(noDotPath) {
 			return noDotPath, true
 		}
 	}
@@ -84,7 +85,7 @@ func ResolveFilePath(repoPath, relativePath string, structure RepoStructure) (st
 		return findInChezmoi(repoPath, relativePath)
 	case StructureConfig:
 		configPath := filepath.Join(repoPath, "config", relativePath)
-		if fileExists(configPath) {
+		if pathExists(configPath) {
 			return configPath, true
 		}
 	case StructureFlat:
@@ -127,7 +128,7 @@ func looksLikeStow(repoPath string) bool {
 	return packageDirs >= 2
 }
 
-// findInStow searches for a file in stow-style layout
+// findInStow searches for a file or directory in stow-style layout
 func findInStow(repoPath, relativePath string) (string, bool) {
 	entries, err := os.ReadDir(repoPath)
 	if err != nil {
@@ -141,7 +142,7 @@ func findInStow(repoPath, relativePath string) (string, bool) {
 		}
 
 		pkgPath := filepath.Join(repoPath, entry.Name(), relativePath)
-		if fileExists(pkgPath) {
+		if pathExists(pkgPath) {
 			return pkgPath, true
 		}
 	}
@@ -204,6 +205,12 @@ func hasConfigFiles(dirPath string) bool {
 	}
 
 	return false
+}
+
+// pathExists checks if a path exists (file or directory)
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // fileExists checks if a file exists
