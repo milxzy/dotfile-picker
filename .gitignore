@@ -35,6 +35,14 @@ vendor/
 .idea/
 *.iml
 
+# AI coding assistants
+.claude/
+.opencode/
+.aider/
+.cursor/
+*.claude
+*.opencode
+
 # OS artifacts
 .DS_Store
 Thumbs.db
