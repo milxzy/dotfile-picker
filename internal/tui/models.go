@@ -19,6 +19,9 @@ const (
 	ScreenDiff
 	ScreenComplete
 	ScreenError
+	ScreenSubmoduleConfirm
+	ScreenDependencyCheck
+	ScreenPluginManagerDetect
 )
 
 // messages for bubble tea
@@ -53,13 +56,50 @@ type (
 		creatorID string
 	}
 
-	// diffGeneratedMsg is sent when a diff is generated
+	// filesResolvedMsg is sent when file paths are resolved
+	filesResolvedMsg struct {
+		structure manifest.RepoStructure
+		fileMap   map[string]string
+	}
+
+	// diffGeneratedMsg is sent when diffs are generated
 	diffGeneratedMsg struct {
-		result *diff.Result
+		result []*diff.Result
 	}
 
 	// applyCompleteMsg is sent when files are applied
 	applyCompleteMsg struct {
 		results []*applier.ApplyResult
+	}
+
+	// submodulesDetectedMsg is sent when submodules are found
+	submodulesDetectedMsg struct {
+		creatorID     string
+		hasSubmodules bool
+	}
+
+	// submodulesInitializedMsg is sent when submodules are initialized
+	submodulesInitializedMsg struct {
+		creatorID string
+	}
+
+	// dependenciesCheckedMsg sent when dependency check completes
+	dependenciesCheckedMsg struct {
+		results []interface{} // will be []deps.CheckResult but avoiding import cycle
+	}
+
+	// dependenciesInstalledMsg sent when dependencies are installed
+	dependenciesInstalledMsg struct {
+		success bool
+	}
+
+	// pluginManagerDetectedMsg sent when plugin manager is found
+	pluginManagerDetectedMsg struct {
+		manager interface{} // will be *deps.NvimPluginManager
+	}
+
+	// pluginManagerInstalledMsg sent when plugin manager is installed
+	pluginManagerInstalledMsg struct {
+		success bool
 	}
 )
