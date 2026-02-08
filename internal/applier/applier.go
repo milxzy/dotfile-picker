@@ -45,7 +45,7 @@ func (a *Applier) Apply(sourcePath, targetRelPath string, creator *manifest.Crea
 	result := &ApplyResult{}
 
 	// resolve target path (expand to full path)
-	targetPath := a.resolveTargetPath(targetRelPath)
+	targetPath := a.ResolveTargetPath(targetRelPath, a.homeDir)
 	result.TargetPath = targetPath
 
 	// create backup if file exists
@@ -93,17 +93,17 @@ func (a *Applier) ApplyMultiple(files map[string]string, creator *manifest.Creat
 	return results
 }
 
-// resolveTargetPath converts a relative path to an absolute path
+// ResolveTargetPath converts a relative path to an absolute path
 // handles both ~/.config/... and .config/... formats
-func (a *Applier) resolveTargetPath(relPath string) string {
+func (a *Applier) ResolveTargetPath(relPath, homeDir string) string {
 	// if path starts with ~, expand it
 	if len(relPath) > 0 && relPath[0] == '~' {
-		return filepath.Join(a.homeDir, relPath[1:])
+		return filepath.Join(homeDir, relPath[1:])
 	}
 
 	// if path starts with ., treat it relative to home
 	if len(relPath) > 0 && relPath[0] == '.' {
-		return filepath.Join(a.homeDir, relPath)
+		return filepath.Join(homeDir, relPath)
 	}
 
 	// if path starts with /, use it as-is
@@ -112,7 +112,7 @@ func (a *Applier) resolveTargetPath(relPath string) string {
 	}
 
 	// otherwise, treat as relative to home
-	return filepath.Join(a.homeDir, relPath)
+	return filepath.Join(homeDir, relPath)
 }
 
 // Rollback attempts to restore from backup
