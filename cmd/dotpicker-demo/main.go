@@ -11,7 +11,8 @@ import (
 )
 
 func main() {
-	fmt.Println("=== dotfile picker demo ===\n")
+	fmt.Println("=== dotfile picker demo ===")
+	fmt.Println()
 
 	// load config
 	cfg, err := config.Default()
@@ -45,7 +46,8 @@ func main() {
 	fmt.Printf("✓ loaded %d creators in %d categories\n\n", len(m.Creators), len(m.Categories))
 
 	// show categories
-	fmt.Println("=== available categories ===\n")
+	fmt.Println("=== available categories ===")
+	fmt.Println()
 	for i, cat := range m.Categories {
 		creators := m.GetCreatorsByCategory(cat.ID)
 		fmt.Printf("%d. %s (%d creators)\n", i+1, cat.Name, len(creators))
@@ -53,7 +55,8 @@ func main() {
 	}
 
 	// show some creators
-	fmt.Println("=== featured creators ===\n")
+	fmt.Println("=== featured creators ===")
+	fmt.Println()
 	for i, creator := range m.Creators {
 		if i >= 3 {
 			break // just show first 3
@@ -68,7 +71,8 @@ func main() {
 		fmt.Println()
 	}
 
-	fmt.Println("=== how to use ===\n")
+	fmt.Println("=== how to use ===")
+	fmt.Println()
 	fmt.Println("to use the full interactive tui, run:")
 	fmt.Println("  ./bin/dotpicker")
 	fmt.Println()
