@@ -26,9 +26,9 @@ func (d DirEntry) FilterValue() string { return d.name }
 // Title implements list.DefaultItem interface
 func (d DirEntry) Title() string {
 	if d.isDir {
-		return "📁 " + d.name
+		return "▸ " + d.name
 	}
-	return "📄 " + d.name
+	return "• " + d.name
 }
 
 // Description implements list.DefaultItem interface
@@ -52,7 +52,11 @@ type DirBrowser struct {
 
 // NewDirBrowser creates a new directory browser
 func NewDirBrowser(rootPath, targetName string, width, height int) *DirBrowser {
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), width, height-10)
+	listHeight := height - 12
+	if listHeight < 5 {
+		listHeight = 5
+	}
+	l := list.New([]list.Item{}, list.NewDefaultDelegate(), width-10, listHeight)
 	l.Title = "Select directory for: " + targetName
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(false)
@@ -72,6 +76,20 @@ func NewDirBrowser(rootPath, targetName string, width, height int) *DirBrowser {
 
 	browser.LoadDirectory(rootPath)
 	return browser
+}
+
+// Resize updates the list dimensions when terminal size changes
+func (b *DirBrowser) Resize(width, height int) {
+	if b == nil {
+		return
+	}
+	b.width = width
+	b.height = height
+	listHeight := height - 12
+	if listHeight < 5 {
+		listHeight = 5
+	}
+	b.list.SetSize(width-10, listHeight)
 }
 
 // LoadDirectory reads the directory and populates the list
@@ -188,16 +206,16 @@ func (b *DirBrowser) View() string {
 	statsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	fileStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("170"))
 
-	stats := fmt.Sprintf("📊 Current directory: %d directories, %d files", b.dirCount, b.fileCount)
+	stats := fmt.Sprintf("Current directory: %d directories, %d files", b.dirCount, b.fileCount)
 	if b.dirCount == 0 && b.fileCount == 0 {
-		stats = "📊 Current directory: empty"
+		stats = "Current directory: empty"
 	}
 	view.WriteString(statsStyle.Render(stats))
 	view.WriteString("\n\n")
 
 	// Show file preview if there are files
 	if len(b.files) > 0 {
-		view.WriteString(fileStyle.Render("📄 Files in this directory:\n"))
+		view.WriteString(fileStyle.Render("Files in this directory:\n"))
 
 		maxFiles := 8 // Show max 8 files
 		for i, fileName := range b.files {

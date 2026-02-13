@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -21,6 +22,37 @@ import (
 	"github.com/milxzy/dot-generator/internal/diff"
 	"github.com/milxzy/dot-generator/internal/manifest"
 )
+
+func renderDiffSummary(results []*diff.Result) string {
+	if len(results) == 0 {
+		return mutedStyle.Render("no changes to show")
+	}
+
+	newFiles := 0
+	modifiedFiles := 0
+	adds := 0
+	dels := 0
+
+	for _, r := range results {
+		if r.IsNew {
+			newFiles++
+		} else if !r.IsIdentical {
+			modifiedFiles++
+			a, d := diff.GetDiffStats(r)
+			adds += a
+			dels += d
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Files: %d new, %d modified\n", newFiles, modifiedFiles))
+	if adds > 0 || dels > 0 {
+		b.WriteString(fmt.Sprintf("Changes: +%d additions, -%d deletions", adds, dels))
+	} else {
+		b.WriteString("No textual changes")
+	}
+	return b.String()
+}
 
 // Model represents the entire app state
 type Model struct {
@@ -50,7 +82,9 @@ type Model struct {
 	// workflow state
 	repoStructure manifest.RepoStructure
 	fileMap       map[string]string // source path -> target path
+	sortedTargets []string          // deterministic order for file view
 	diffResults   []*diff.Result
+	// diffViewer    *DiffViewer // temporarily disabled until next release
 
 	// dependency checking
 	depChecker    *deps.Checker
@@ -133,6 +167,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.dirBrowser != nil {
+			m.dirBrowser.Resize(msg.Width, msg.Height)
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -294,6 +331,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// files resolved, save state
 		m.repoStructure = msg.structure
 		m.fileMap = msg.fileMap
+		m.sortedTargets = make([]string, 0, len(msg.fileMap))
+		for _, target := range msg.fileMap {
+			m.sortedTargets = append(m.sortedTargets, target)
+		}
+		sort.Strings(m.sortedTargets)
 
 		// Show tree confirmation view so user can see what will be applied
 		m.screen = ScreenTreeConfirm
@@ -346,6 +388,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// Diff viewer temporarily disabled
+
 	return m, cmd
 }
 
@@ -383,7 +427,7 @@ func (m *Model) View() string {
 
 // viewLoading shows the loading screen
 func (m *Model) viewLoading() string {
-	return fmt.Sprintf("\n\n   %s loading manifest...\n\n", m.spinner.View())
+	return centerContent(m.width, fmt.Sprintf("\n\n   %s loading manifest...\n\n", m.spinner.View()))
 }
 
 // viewCategories shows the category selection
@@ -398,7 +442,7 @@ func (m *Model) viewCategories() string {
 	b.WriteString("\n\n")
 	b.WriteString(formatHelp("enter: select • q: quit"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewCreators shows creators in selected category
@@ -413,7 +457,7 @@ func (m *Model) viewCreators() string {
 	b.WriteString("\n\n")
 	b.WriteString(formatHelp("enter: select • esc: back • q: quit"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewDotfiles shows dotfiles from selected creator
@@ -430,7 +474,7 @@ func (m *Model) viewDotfiles() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("note: applying will create backups of your existing configs"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewTreeConfirm shows the tree structure of files that will be applied
@@ -460,14 +504,14 @@ func (m *Model) viewTreeConfirm() string {
 	b.WriteString(fmt.Sprintf("📂 Detected structure: %s\n", structureType))
 	b.WriteString(fmt.Sprintf("📝 Files to apply: %d\n\n", len(m.fileMap)))
 
-	// Show file tree (limit to prevent overflow)
-	maxFiles := 15
+	// Show file tree in deterministic order with pagination to avoid jitter
+	maxFiles := 20
 	count := 0
 	b.WriteString("Files that will be installed:\n\n")
 
-	for _, targetPath := range m.fileMap {
+	for _, targetPath := range m.sortedTargets {
 		if count >= maxFiles {
-			remaining := len(m.fileMap) - maxFiles
+			remaining := len(m.sortedTargets) - maxFiles
 			b.WriteString(mutedStyle.Render(fmt.Sprintf("\n... and %d more files\n", remaining)))
 			break
 		}
@@ -488,7 +532,7 @@ func (m *Model) viewTreeConfirm() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("note: backups will be created before any files are modified"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewDownloading shows the downloading screen with dynamic status
@@ -507,7 +551,7 @@ func (m *Model) viewDownloading() string {
 
 	b.WriteString(mutedStyle.Render("   this may take a moment..."))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewDiff shows the diff screen
@@ -522,67 +566,9 @@ func (m *Model) viewDiff() string {
 	if len(m.diffResults) == 0 {
 		b.WriteString(mutedStyle.Render("no changes to show"))
 	} else {
-		// show summary stats
-		totalAdditions := 0
-		totalDeletions := 0
-		newFiles := 0
-		modifiedFiles := 0
-
-		for _, result := range m.diffResults {
-			if result.IsNew {
-				newFiles++
-			} else if !result.IsIdentical {
-				modifiedFiles++
-				adds, dels := diff.GetDiffStats(result)
-				totalAdditions += adds
-				totalDeletions += dels
-			}
-		}
-
-		// summary
-		b.WriteString(fmt.Sprintf("Files: %d new, %d modified\n", newFiles, modifiedFiles))
-		if totalAdditions > 0 || totalDeletions > 0 {
-			b.WriteString(fmt.Sprintf("Changes: +%d additions, -%d deletions\n\n", totalAdditions, totalDeletions))
-		} else {
-			b.WriteString("\n")
-		}
-
-		// show first few diffs (limit to avoid huge output)
-		maxToShow := 3
-		shown := 0
-		for _, result := range m.diffResults {
-			if shown >= maxToShow {
-				remaining := len(m.diffResults) - shown
-				b.WriteString(mutedStyle.Render(fmt.Sprintf("\n... and %d more files", remaining)))
-				break
-			}
-
-			if result.IsIdentical {
-				continue // skip identical files
-			}
-
-			b.WriteString(formatSubtitle(fmt.Sprintf("→ %s", result.TargetPath)))
-			b.WriteString("\n")
-
-			if result.IsNew {
-				b.WriteString(mutedStyle.Render("(new file)\n"))
-			}
-
-			// show diff (truncate if too long)
-			diffLines := strings.Split(result.Diff, "\n")
-			maxLines := 15
-			if len(diffLines) > maxLines {
-				for i := 0; i < maxLines; i++ {
-					b.WriteString(diffLines[i])
-					b.WriteString("\n")
-				}
-				b.WriteString(mutedStyle.Render(fmt.Sprintf("... (%d more lines)\n", len(diffLines)-maxLines)))
-			} else {
-				b.WriteString(result.Diff)
-			}
-			b.WriteString("\n")
-			shown++
-		}
+		b.WriteString(renderDiffSummary(m.diffResults))
+		b.WriteString("\n")
+		b.WriteString(mutedStyle.Render("Detailed diff viewer coming in the next release."))
 	}
 
 	b.WriteString("\n")
@@ -590,7 +576,7 @@ func (m *Model) viewDiff() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("note: your existing configs will be backed up before applying"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewDependencyCheck shows dependency status
@@ -634,7 +620,7 @@ func (m *Model) viewDependencyCheck() string {
 		b.WriteString(formatHelp("enter: continue • esc: cancel"))
 	}
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewPluginManagerDetect shows plugin manager installation prompt
@@ -649,7 +635,7 @@ func (m *Model) viewPluginManagerDetect() string {
 	b.WriteString(mutedStyle.Render("After installing, you may need to run plugin installation commands.\n\n"))
 	b.WriteString(formatHelp("y: install • n: skip • q: quit"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // Note: viewSubmoduleConfirm removed - submodules are now skipped entirely
@@ -688,7 +674,7 @@ func (m *Model) viewComplete() string {
 	b.WriteString(mutedStyle.Render("tip: backups are kept forever, you can manually restore if needed\n\n"))
 	b.WriteString(formatHelp("esc: back to dotfiles • q: quit"))
 
-	return b.String()
+	return centerContent(m.width, b.String())
 }
 
 // viewError shows an error

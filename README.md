@@ -26,7 +26,7 @@ if you prefer scripts, `./install.sh` handles the build plus a local install in 
 3. select a creator to see their available dotfiles (no download yet - browse freely!)
 4. hit `enter` on a dotfile to download the creator's repo and proceed
 5. the app auto-detects the repo structure, checks dependencies, and shows you a tree view of what will be installed
-6. confirm the tree, review diffs, then apply - backups are created automatically in `~/.config/dotfile-picker/backups`
+6. confirm the tree, skim the summary diffs (full viewer coming soon), then apply - backups are created automatically in `~/.config/dotfile-picker/backups`
 
 key bindings: `enter` selects/confirms, `esc` goes back, `q` quits, `ctrl+c` hard exits. prompts for deps or plugin managers show key hints on screen.
 
@@ -44,7 +44,7 @@ note: git submodules are skipped automatically - modern plugin managers (lazy.nv
 
 ## roadmap ideas
 - richer manifest metadata (platform tags, screenshots, verification badges)
-- diff viewing upgrades that highlight highlights triple column style
+- diff viewing upgrades (collapsible, scrollable view coming soon)
 - transplant mode to move configs between machines using the existing backup metadata
 - milestone markers will land as v2, v3, etc so changes stay grouped and folks can follow along
 

@@ -2,6 +2,8 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -100,6 +102,8 @@ var (
 	// progress bar style
 	progressBarStyle = lipgloss.NewStyle().
 				Foreground(primaryColor)
+
+	contentWidth = 100 // default content width for centering
 )
 
 // formatTitle renders a title with the app name
@@ -135,6 +139,23 @@ func formatStatusBar(text string) string {
 // formatBadge renders a badge (for counts, tags, etc)
 func formatBadge(text string) string {
 	return badgeStyle.Render(text)
+}
+
+// centerContent adds horizontal padding to center the view in the terminal
+func centerContent(totalWidth int, content string) string {
+	if totalWidth <= contentWidth+4 {
+		return content
+	}
+	padding := (totalWidth - contentWidth) / 2
+	pad := strings.Repeat(" ", padding)
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if len(strings.TrimSpace(line)) == 0 {
+			continue
+		}
+		lines[i] = pad + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 // formatDiffLine formats a diff line based on its prefix
