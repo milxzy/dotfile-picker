@@ -77,6 +77,24 @@ func ResolveFilePath(repoPath, relativePath string, structure RepoStructure) (st
 		}
 	}
 
+	// try common directory aliases (e.g., .config -> xdg_config, ~ -> home)
+	pathAliases := map[string][]string{
+		".config": {"xdg_config", "config"},
+		"~":       {"home"},
+	}
+
+	for pattern, replacements := range pathAliases {
+		if strings.Contains(relativePath, pattern) {
+			for _, replacement := range replacements {
+				aliasPath := strings.Replace(relativePath, pattern, replacement, 1)
+				fullPath := filepath.Join(repoPath, aliasPath)
+				if pathExists(fullPath) {
+					return fullPath, true
+				}
+			}
+		}
+	}
+
 	// search based on structure
 	switch structure {
 	case StructureStow:

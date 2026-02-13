@@ -34,7 +34,7 @@
         {
           "id": "nvim",
           "name": "neovim",
-          "description": "neovim config with custom lua setup",
+          "description": "neovim config with custom lua setup (submodule auto-resolved)",
           "paths": [".config/nvim"],
           "dependencies": ["neovim"]
         },
@@ -58,9 +58,23 @@
         {
           "id": "nvim",
           "name": "neovim",
-          "description": "neovim config from a core contributor",
+          "description": "neovim config from a core contributor (submodule auto-resolved)",
           "paths": [".config/nvim"],
           "dependencies": ["neovim"]
+        },
+        {
+          "id": "zsh",
+          "name": "zsh",
+          "description": "zsh configuration with custom functions",
+          "paths": [".config/zsh"],
+          "dependencies": ["zsh"]
+        },
+        {
+          "id": "wezterm",
+          "name": "wezterm",
+          "description": "wezterm terminal emulator config",
+          "paths": [".config/wezterm"],
+          "dependencies": ["wezterm"]
         }
       ]
     },
@@ -140,37 +154,6 @@
           "description": "zsh shell configuration",
           "paths": [".zshrc"],
           "dependencies": ["zsh"]
-        }
-      ]
-    },
-    {
-      "id": "christitustech",
-      "name": "ChrisTitusTech",
-      "github": "ChrisTitusTech",
-      "repo": "https://github.com/ChrisTitusTech/titus-dotfiles",
-      "categories": ["tiling-wm", "terminal-lovers"],
-      "description": "system admin and linux content creator",
-      "dotfiles": [
-        {
-          "id": "i3",
-          "name": "i3",
-          "description": "i3 window manager configuration",
-          "paths": [".config/i3/config"],
-          "dependencies": ["i3-wm"]
-        },
-        {
-          "id": "polybar",
-          "name": "polybar",
-          "description": "polybar status bar config",
-          "paths": [".config/polybar"],
-          "dependencies": ["polybar"]
-        },
-        {
-          "id": "zsh",
-          "name": "zsh",
-          "description": "zsh with oh-my-zsh",
-          "paths": [".zshrc"],
-          "dependencies": ["zsh", "oh-my-zsh"]
         }
       ]
     }

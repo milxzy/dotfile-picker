@@ -22,18 +22,23 @@ if you prefer scripts, `./install.sh` handles the build plus a local install in 
 ## how to use it
 ### interactive tui
 1. run `./bin/dotpicker` (or `dotpicker` if you installed globally)
-2. wait for the manifest download spinner to finish, then move through categories with the arrow keys
-3. hit `enter` to drill into a creator, view their dotfiles, and select one to inspect
-4. the app checks dependencies, pulls the repo into your cache, and detects structure (chezmoi, stow, plain directories, etc)
-5. review diffs, confirm, and let the applier copy files while it tucks backups into `~/.config/dotfile-picker/backups`
+2. select a category (vim wizards, terminal enthusiasts, etc) with arrow keys
+3. select a creator to see their available dotfiles (no download yet - browse freely!)
+4. hit `enter` on a dotfile to download the creator's repo and proceed
+5. the app auto-detects the repo structure, checks dependencies, and shows you a tree view of what will be installed
+6. confirm the tree, review diffs, then apply - backups are created automatically in `~/.config/dotfile-picker/backups`
 
-key bindings: `enter` selects, `esc` goes back, `q` quits, `ctrl+c` hard exits. prompts for deps, plugin managers, or submodules accept the key hints shown on screen.
+key bindings: `enter` selects/confirms, `esc` goes back, `q` quits, `ctrl+c` hard exits. prompts for deps or plugin managers show key hints on screen.
+
+note: git submodules are skipped automatically - modern plugin managers (lazy.nvim, packer) auto-install on first run anyway.
 
 ### headless demo
 - run `go run ./cmd/dotpicker-demo` to print config dirs, manifest stats, and a quick tour of featured creators without launching the tui
 
 ## troubleshooting basics
 - delete `~/.config/dotfile-picker/cache/<creator>` if a repo clone gets messy, then retry
+- if structure auto-detection fails, you'll see a directory browser - navigate to the folder containing the configs
+- the manifest loads from `configs/manifest.json` - faster startup and works offline
 - logs live in `~/.config/dotfile-picker/logs` when the logger is enabled (default scaffolding is ready even if most commands stay quiet)
 - rerun `go mod tidy` whenever you upgrade go modules or pull big dependency changes
 

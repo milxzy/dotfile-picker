@@ -3,6 +3,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -39,12 +40,12 @@ type Model struct {
 	creatorList  list.Model
 	dotfileList  list.Model
 	spinner      spinner.Model
+	dirBrowser   *DirBrowser
 
 	// selections
 	selectedCategory *manifest.Category
 	selectedCreator  *manifest.Creator
 	selectedDotfile  *manifest.Dotfile
-	selectedDotfiles []*manifest.Dotfile
 
 	// workflow state
 	repoStructure manifest.RepoStructure
@@ -136,18 +137,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Handle screen-specific keys first
-		if m.screen == ScreenSubmoduleConfirm {
-			switch msg.String() {
-			case "y", "Y":
-				m.screen = ScreenDownloading
-				m.statusMsg = "initializing submodules"
-				return m, tea.Batch(m.spinner.Tick, m.initSubmodules)
-			case "n", "N":
-				// skip submodules, continue
-				return m, m.detectStructure
-			}
-		}
-
 		if m.screen == ScreenDependencyCheck {
 			switch msg.String() {
 			case "i", "I":
@@ -156,13 +145,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "installing dependencies"
 				return m, tea.Batch(m.spinner.Tick, m.installMissingDependencies)
 			case "s", "S":
-				// skip and continue with download
+				// skip and continue to structure detection
 				m.screen = ScreenDownloading
-				return m, tea.Batch(m.spinner.Tick, m.downloadRepo)
+				m.statusMsg = "resolving file paths"
+				return m, tea.Batch(m.spinner.Tick, m.detectStructure)
 			case "enter":
-				// all installed, continue
+				// all installed, continue to structure detection
 				m.screen = ScreenDownloading
-				return m, tea.Batch(m.spinner.Tick, m.downloadRepo)
+				m.statusMsg = "resolving file paths"
+				return m, tea.Batch(m.spinner.Tick, m.detectStructure)
 			}
 		}
 
@@ -178,18 +169,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		if m.screen == ScreenError {
+		if m.screen == ScreenDirectoryBrowser {
 			switch msg.String() {
 			case "c", "C":
-				// Continue without submodules (if it was a submodule error)
-				if m.err != nil && strings.Contains(m.err.Error(), "submodule") {
-					m.err = nil
-					m.screen = ScreenDownloading
-					m.statusMsg = "detecting repository structure"
-					return m, tea.Batch(m.spinner.Tick, m.detectStructure)
+				// Confirm current directory selection (for individual dotfile)
+				selectedPath := m.dirBrowser.GetCurrentPath()
+				return m, func() tea.Msg {
+					return directorySelectedMsg{selectedPath: selectedPath}
 				}
+			case "esc":
+				// Cancel and go back to dotfile selection
+				m.screen = ScreenDotfile
+				return m, nil
 			}
 		}
+
+		// Error screen handling removed - ESC navigation handles going back
 
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -201,16 +196,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.screen = ScreenCategory
 			case ScreenDotfile:
 				m.screen = ScreenCreator
+			case ScreenTreeConfirm:
+				// Cancel and go back to dotfile selection
+				m.screen = ScreenDotfile
 			case ScreenDependencyCheck:
 				m.screen = ScreenDotfile
-			case ScreenSubmoduleConfirm:
-				m.screen = ScreenDotfile
 			case ScreenPluginManagerDetect:
-				m.screen = ScreenDiff
+				m.screen = ScreenTreeConfirm
+			case ScreenDirectoryBrowser:
+				m.screen = ScreenDotfile
 			case ScreenDiff:
-				m.screen = ScreenDotfile
+				m.screen = ScreenTreeConfirm
 			case ScreenComplete:
-				m.screen = ScreenDotfile
+				m.screen = ScreenCategory
 			case ScreenError:
 				// try to go back to a safe screen
 				if m.selectedCreator != nil {
@@ -236,21 +234,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case repoDownloadedMsg:
-		// repo downloaded, check for submodules
-		return m, m.checkSubmodules
-
-	case submodulesDetectedMsg:
-		if msg.hasSubmodules {
-			// ask user if they want to initialize submodules
-			m.screen = ScreenSubmoduleConfirm
-			return m, nil
+		// repo downloaded, proceed to dependency check or structure detection
+		// (submodules are skipped - modern plugin managers auto-install)
+		if m.depChecker != nil && len(m.selectedDotfile.Dependencies) > 0 {
+			return m, m.checkDependencies
 		}
-		// no submodules, proceed to structure detection
-		return m, m.detectStructure
-
-	case submodulesInitializedMsg:
-		// submodules initialized, proceed to structure detection
-		return m, m.detectStructure
+		// No dependencies, proceed to structure detection
+		m.screen = ScreenDownloading
+		m.statusMsg = "resolving file paths"
+		return m, tea.Batch(m.spinner.Tick, m.detectStructure)
 
 	case dependenciesCheckedMsg:
 		// convert back from interface{}
@@ -265,9 +257,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case dependenciesInstalledMsg:
 		if msg.success {
-			// dependencies installed, proceed with download
+			// dependencies installed, proceed to structure detection
 			m.screen = ScreenDownloading
-			return m, tea.Batch(m.spinner.Tick, m.downloadRepo)
+			m.statusMsg = "resolving file paths"
+			return m, tea.Batch(m.spinner.Tick, m.detectStructure)
 		}
 		// installation failed, stay on dependency screen
 		return m, nil
@@ -302,13 +295,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.repoStructure = msg.structure
 		m.fileMap = msg.fileMap
 
-		// If this is a neovim config, check for plugin managers
-		if m.selectedDotfile.ID == "nvim" {
-			return m, m.detectPluginManager
-		}
+		// Show tree confirmation view so user can see what will be applied
+		m.screen = ScreenTreeConfirm
+		return m, nil
 
-		// Not nvim or no plugin manager needed, continue to diffs
-		return m, m.generateDiffs
+	case pathNotFoundMsg:
+		// Auto-detection failed, show directory browser
+		m.screen = ScreenDirectoryBrowser
+		m.dirBrowser = NewDirBrowser(msg.repoPath, msg.requestedPath, m.width, m.height)
+		return m, nil
+
+	case directorySelectedMsg:
+		// User selected a directory for a specific dotfile, resolve it and continue
+		return m, m.resolveSelectedDirectory(msg.selectedPath)
 
 	case diffGeneratedMsg:
 		// diffs generated, show them to user
@@ -332,7 +331,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// update current list
+	// update current list or browser
 	var cmd tea.Cmd
 	switch m.screen {
 	case ScreenCategory:
@@ -341,6 +340,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.creatorList, cmd = m.creatorList.Update(msg)
 	case ScreenDotfile:
 		m.dotfileList, cmd = m.dotfileList.Update(msg)
+	case ScreenDirectoryBrowser:
+		if m.dirBrowser != nil {
+			m.dirBrowser, cmd = m.dirBrowser.Update(msg)
+		}
 	}
 
 	return m, cmd
@@ -359,14 +362,16 @@ func (m *Model) View() string {
 		return m.viewDotfiles()
 	case ScreenDownloading:
 		return m.viewDownloading()
+	case ScreenTreeConfirm:
+		return m.viewTreeConfirm()
 	case ScreenDiff:
 		return m.viewDiff()
-	case ScreenSubmoduleConfirm:
-		return m.viewSubmoduleConfirm()
 	case ScreenDependencyCheck:
 		return m.viewDependencyCheck()
 	case ScreenPluginManagerDetect:
 		return m.viewPluginManagerDetect()
+	case ScreenDirectoryBrowser:
+		return m.viewDirectoryBrowser()
 	case ScreenComplete:
 		return m.viewComplete()
 	case ScreenError:
@@ -428,13 +433,78 @@ func (m *Model) viewDotfiles() string {
 	return b.String()
 }
 
-// viewDownloading shows the downloading screen
+// viewTreeConfirm shows the tree structure of files that will be applied
+func (m *Model) viewTreeConfirm() string {
+	var b strings.Builder
+
+	b.WriteString(formatTitle("dotfile picker"))
+	b.WriteString("\n")
+	b.WriteString(formatSubtitle(fmt.Sprintf("%s - %s", m.selectedCreator.Name, m.selectedDotfile.Name)))
+	b.WriteString("\n\n")
+
+	// Show detected structure type
+	structureType := "unknown"
+	switch m.repoStructure {
+	case manifest.StructureFlat:
+		structureType = "flat (dotfiles at root)"
+	case manifest.StructureStow:
+		structureType = "stow layout"
+	case manifest.StructureChezmoi:
+		structureType = "chezmoi"
+	case manifest.StructureConfig:
+		structureType = "config directory"
+	case manifest.StructureBareRepo:
+		structureType = "bare repository"
+	}
+
+	b.WriteString(fmt.Sprintf("📂 Detected structure: %s\n", structureType))
+	b.WriteString(fmt.Sprintf("📝 Files to apply: %d\n\n", len(m.fileMap)))
+
+	// Show file tree (limit to prevent overflow)
+	maxFiles := 15
+	count := 0
+	b.WriteString("Files that will be installed:\n\n")
+
+	for _, targetPath := range m.fileMap {
+		if count >= maxFiles {
+			remaining := len(m.fileMap) - maxFiles
+			b.WriteString(mutedStyle.Render(fmt.Sprintf("\n... and %d more files\n", remaining)))
+			break
+		}
+
+		// Expand tilde for display
+		displayPath := targetPath
+		if strings.HasPrefix(displayPath, "~") {
+			homeDir, _ := os.UserHomeDir()
+			displayPath = filepath.Join(homeDir, displayPath[1:])
+		}
+
+		b.WriteString(fmt.Sprintf("  • %s\n", displayPath))
+		count++
+	}
+
+	b.WriteString("\n")
+	b.WriteString(formatHelp("enter: confirm and continue • esc: cancel • q: quit"))
+	b.WriteString("\n")
+	b.WriteString(mutedStyle.Render("note: backups will be created before any files are modified"))
+
+	return b.String()
+}
+
+// viewDownloading shows the downloading screen with dynamic status
 func (m *Model) viewDownloading() string {
 	var b strings.Builder
 
 	b.WriteString(formatTitle("dotfile picker"))
 	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("   %s downloading and analyzing %s's dotfiles...\n\n", m.spinner.View(), m.selectedCreator.Name))
+
+	// Show the dynamic status message if available
+	if m.statusMsg != "" {
+		b.WriteString(fmt.Sprintf("   %s %s...\n\n", m.spinner.View(), m.statusMsg))
+	} else {
+		b.WriteString(fmt.Sprintf("   %s processing...\n\n", m.spinner.View()))
+	}
+
 	b.WriteString(mutedStyle.Render("   this may take a moment..."))
 
 	return b.String()
@@ -582,23 +652,7 @@ func (m *Model) viewPluginManagerDetect() string {
 	return b.String()
 }
 
-// viewSubmoduleConfirm shows the submodule initialization prompt
-func (m *Model) viewSubmoduleConfirm() string {
-	var b strings.Builder
-
-	b.WriteString(formatTitle("dotfile picker"))
-	b.WriteString("\n\n")
-	b.WriteString("This repository contains git submodules (nested repositories).\n\n")
-	b.WriteString("Submodules may contain additional configuration files needed\n")
-	b.WriteString("for the dotfiles to work properly.\n\n")
-	b.WriteString("Would you like to initialize them?\n")
-	b.WriteString(mutedStyle.Render("(This may take a moment)\n\n"))
-	b.WriteString(mutedStyle.Render("Note: Some submodules may require SSH keys for authentication.\n"))
-	b.WriteString(mutedStyle.Render("If you don't have SSH keys set up, you can skip this step.\n\n"))
-	b.WriteString(formatHelp("y: yes, initialize • n: no, skip • q: quit"))
-
-	return b.String()
-}
+// Note: viewSubmoduleConfirm removed - submodules are now skipped entirely
 
 // viewComplete shows the completion screen
 func (m *Model) viewComplete() string {
@@ -655,14 +709,7 @@ func (m *Model) viewError() string {
 	errMsg := m.err.Error()
 	b.WriteString(formatError(errMsg))
 	b.WriteString("\n\n")
-
-	// Check if it's a submodule error - offer to skip and continue
-	if strings.Contains(errMsg, "submodule") {
-		b.WriteString(mutedStyle.Render("Submodules are optional. You can skip them and continue.\n\n"))
-		b.WriteString(formatHelp("c: continue without submodules • esc: back • q: quit"))
-	} else {
-		b.WriteString(formatHelp("esc: back • q: quit"))
-	}
+	b.WriteString(formatHelp("esc: back • q: quit"))
 
 	return b.String()
 }
@@ -680,7 +727,7 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 			}
 		}
 	case ScreenCreator:
-		// select creator
+		// select creator - show dotfile list immediately (don't download yet)
 		if item, ok := m.creatorList.SelectedItem().(listItem); ok {
 			if creator, ok := item.data.(*manifest.Creator); ok {
 				m.selectedCreator = creator
@@ -689,38 +736,75 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 			}
 		}
 	case ScreenDotfile:
-		// apply dotfile
+		// select dotfile - now download repo and proceed
 		if item, ok := m.dotfileList.SelectedItem().(listItem); ok {
 			if dotfile, ok := item.data.(*manifest.Dotfile); ok {
 				m.selectedDotfile = dotfile
-				m.statusMsg = dotfile.Name
+				m.statusMsg = "downloading " + m.selectedCreator.Name + "'s dotfiles"
 
-				// Check dependencies FIRST if checker is available
-				if m.depChecker != nil && len(dotfile.Dependencies) > 0 {
-					return m, m.checkDependencies
-				}
-
-				// No dependencies or checker unavailable, proceed
+				// Download the repo
 				m.screen = ScreenDownloading
 				return m, tea.Batch(m.spinner.Tick, m.downloadRepo)
 			}
 		}
+	case ScreenTreeConfirm:
+		// User confirmed the tree view, proceed to plugin manager check or diffs
+		if m.selectedDotfile.ID == "nvim" {
+			return m, m.detectPluginManager
+		}
+		// Not nvim, go straight to diffs
+		return m, m.generateDiffs
 	case ScreenDiff:
 		// user confirmed, apply the files
 		m.screen = ScreenDownloading
 		m.statusMsg = "applying files and creating backups"
 		return m, tea.Batch(m.spinner.Tick, m.applyFiles)
+	case ScreenDirectoryBrowser:
+		// navigate into selected directory
+		if m.dirBrowser != nil {
+			if item, ok := m.dirBrowser.list.SelectedItem().(DirEntry); ok {
+				if item.isDir {
+					m.dirBrowser.LoadDirectory(item.path)
+				}
+			}
+		}
 	}
 	return m, nil
 }
 
 // fetchManifest loads the manifest
+// fetchManifest loads the manifest from the local configs directory
 func (m *Model) fetchManifest() tea.Msg {
-	manifest, err := m.fetcher.Fetch(context.Background())
+	// Use local manifest file for faster startup and offline support
+	// The manifest is bundled with the binary in configs/manifest.json
+	localManifestPath := filepath.Join("configs", "manifest.json")
+
+	// Try to read the local manifest file
+	manifest, err := m.loadLocalManifest(localManifestPath)
 	if err != nil {
-		return errorMsg{err}
+		// If local file doesn't exist, try the old remote fetch as fallback
+		manifest, err = m.fetcher.Fetch(context.Background())
+		if err != nil {
+			return errorMsg{fmt.Errorf("couldn't load manifest: %w", err)}
+		}
 	}
+
 	return manifestLoadedMsg{manifest}
+}
+
+// loadLocalManifest reads and parses the local manifest.json file
+func (m *Model) loadLocalManifest(path string) (*manifest.Manifest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var man manifest.Manifest
+	if err := json.Unmarshal(data, &man); err != nil {
+		return nil, fmt.Errorf("couldn't parse manifest: %w", err)
+	}
+
+	return &man, nil
 }
 
 // downloadRepo downloads the selected creator's repo
@@ -732,55 +816,25 @@ func (m *Model) downloadRepo() tea.Msg {
 	return repoDownloadedMsg{creatorID: m.selectedCreator.ID}
 }
 
-// checkSubmodules checks if the repo has git submodules
-func (m *Model) checkSubmodules() tea.Msg {
-	repoPath := m.cache.GetRepoPath(m.selectedCreator.ID)
-	hasSubmodules, err := cache.HasSubmodules(repoPath)
-	if err != nil {
-		// not critical, just log and continue
-		hasSubmodules = false
-	}
-	return submodulesDetectedMsg{
-		creatorID:     m.selectedCreator.ID,
-		hasSubmodules: hasSubmodules,
-	}
-}
-
-// initSubmodules initializes git submodules
-func (m *Model) initSubmodules() tea.Msg {
-	ctx := context.Background()
-	repoPath := m.cache.GetRepoPath(m.selectedCreator.ID)
-	if err := cache.InitSubmodules(ctx, repoPath); err != nil {
-		errStr := err.Error()
-
-		// Check for private/non-existent repos (very common, not really an error)
-		if strings.Contains(errStr, "private or don't exist") || strings.Contains(errStr, "Repository not found") {
-			return errorMsg{fmt.Errorf("⚠️  Some submodules are private repositories\n\nThis is completely normal! Many creators have private configs.\nThe main dotfiles will work fine without them.\n\n👉 Press 'c' to continue, or 'n' next time to skip submodules.\n\n%s", errStr)}
-		}
-
-		// Check if it's an SSH/auth error
-		if strings.Contains(errStr, "SSH") || strings.Contains(errStr, "ssh:") ||
-			strings.Contains(errStr, "Permission denied") || strings.Contains(errStr, "access rights") {
-			return errorMsg{fmt.Errorf("🔐 Submodules need authentication\n\nSome submodules require SSH keys or are private.\nMost dotfiles work fine without submodules!\n\n👉 Press 'c' to continue without them.\n\nIf you need submodules:\n  1. Set up SSH keys: https://docs.github.com/en/authentication\n  2. Or skip this step and continue\n\n%s", errStr)}
-		}
-
-		// Generic error
-		return errorMsg{fmt.Errorf("⚠️  Submodule initialization had issues\n\nDon't worry - the main dotfiles will still work!\n\n👉 Press 'c' to continue without submodules.\n\n%s", errStr)}
-	}
-	return submodulesInitializedMsg{creatorID: m.selectedCreator.ID}
-}
+// Note: checkSubmodules and initSubmodules removed - submodules are now skipped entirely
+// Modern plugin managers auto-install, and submodule failures rarely matter for dotfiles
 
 // detectStructure detects the repo structure and resolves file paths
 func (m *Model) detectStructure() tea.Msg {
-	repoPath := m.cache.GetRepoPath(m.selectedCreator.ID)
-	structure := manifest.DetectStructure(repoPath)
+	// Always use repo root - we auto-detect structure now
+	searchPath := m.cache.GetRepoPath(m.selectedCreator.ID)
+	structure := manifest.DetectStructure(searchPath)
 
 	// resolve file paths
 	fileMap := make(map[string]string)
 	for _, path := range m.selectedDotfile.Paths {
-		sourcePath, found := manifest.ResolveFilePath(repoPath, path, structure)
+		sourcePath, found := manifest.ResolveFilePath(searchPath, path, structure)
 		if !found {
-			return errorMsg{fmt.Errorf("couldn't find file: %s in repo", path)}
+			// Return pathNotFoundMsg to trigger directory browser
+			return pathNotFoundMsg{
+				requestedPath: path,
+				repoPath:      searchPath,
+			}
 		}
 
 		// check if it's a file or directory
@@ -791,10 +845,17 @@ func (m *Model) detectStructure() tea.Msg {
 
 		if info.IsDir() {
 			// for directories, we'll walk and add all files
+			filesFound := 0
 			err := filepath.Walk(sourcePath, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
 				if walkErr != nil {
 					return walkErr
 				}
+
+				// Skip .git directories entirely (both file placeholders and real git dirs)
+				if walkInfo.IsDir() && filepath.Base(walkPath) == ".git" {
+					return filepath.SkipDir
+				}
+
 				if !walkInfo.IsDir() {
 					// get relative path from source
 					relPath, err := filepath.Rel(sourcePath, walkPath)
@@ -804,11 +865,61 @@ func (m *Model) detectStructure() tea.Msg {
 					// target path is the dotfile path + relative path
 					targetPath := filepath.Join(path, relPath)
 					fileMap[walkPath] = targetPath
+					filesFound++
 				}
 				return nil
 			})
 			if err != nil {
 				return errorMsg{fmt.Errorf("couldn't walk directory %s: %w", sourcePath, err)}
+			}
+
+			// If directory is empty (or only has .git file), try to resolve as submodule
+			if filesFound == 0 {
+				// Check if this might be a submodule
+				isEmpty, err := cache.IsEmptyDirectory(sourcePath)
+				if err == nil && isEmpty {
+					// Try to resolve all submodules recursively (depth limit 3)
+					// This handles nested submodules automatically
+					ctx := context.Background()
+					repoPath := m.cache.GetRepoPath(m.selectedCreator.ID)
+
+					if err := cache.ResolveSubmodulesRecursive(ctx, repoPath, 3); err == nil {
+						// Submodules resolved! Re-walk the directory
+						filesFound = 0
+						err := filepath.Walk(sourcePath, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
+							if walkErr != nil {
+								return walkErr
+							}
+
+							// Skip .git directories entirely (both file placeholders and real git dirs)
+							if walkInfo.IsDir() && filepath.Base(walkPath) == ".git" {
+								return filepath.SkipDir
+							}
+
+							if !walkInfo.IsDir() {
+								relPath, err := filepath.Rel(sourcePath, walkPath)
+								if err != nil {
+									return err
+								}
+								targetPath := filepath.Join(path, relPath)
+								fileMap[walkPath] = targetPath
+								filesFound++
+							}
+							return nil
+						})
+						if err != nil {
+							return errorMsg{fmt.Errorf("couldn't walk submodule directory %s: %w", sourcePath, err)}
+						}
+					}
+				}
+
+				// If still empty after trying submodule resolution, show browser
+				if filesFound == 0 {
+					return pathNotFoundMsg{
+						requestedPath: path,
+						repoPath:      searchPath,
+					}
+				}
 			}
 		} else {
 			// single file
@@ -1141,6 +1252,90 @@ func (m *Model) buildDotfileList() {
 	m.dotfileList.Title = ""
 	m.dotfileList.SetShowStatusBar(false)
 	m.dotfileList.SetFilteringEnabled(false)
+}
+
+// Note: showRootSelection and viewRootSelection removed - we now auto-detect structure
+// instead of forcing manual selection. Directory browser is only shown as a fallback
+// when auto-detection fails (via ScreenDirectoryBrowser).
+
+// viewDirectoryBrowser shows the directory browser
+func (m *Model) viewDirectoryBrowser() string {
+	if m.dirBrowser == nil {
+		return "error: directory browser not initialized"
+	}
+
+	var b strings.Builder
+	b.WriteString(formatTitle("dotfile picker"))
+	b.WriteString("\n\n")
+	b.WriteString(formatSubtitle(fmt.Sprintf("finding %s config for %s", m.selectedDotfile.Name, m.selectedCreator.Name)))
+	b.WriteString("\n\n")
+
+	b.WriteString("🔍 Auto-detection couldn't find the config files automatically.\n\n")
+
+	b.WriteString(formatSubtitle("What you need to do:"))
+	b.WriteString("\n")
+	b.WriteString("1. Navigate to the directory that contains the dotfiles you want\n")
+	b.WriteString("2. Look for directories like '.config', 'nvim', 'tmux', etc.\n")
+	b.WriteString("3. Press 'c' when you're in the right directory\n\n")
+
+	b.WriteString(formatSubtitle("Example structures:"))
+	b.WriteString("\n")
+	b.WriteString("   For nvim:     .config/nvim/  (has init.lua or init.vim)\n")
+	b.WriteString("   For tmux:     home/ or root/  (has .tmux.conf)\n")
+	b.WriteString("   For zsh:      home/ or root/  (has .zshrc)\n\n")
+
+	b.WriteString(mutedStyle.Render("💡 Tip: Look at the file names shown below to find config files\n"))
+	b.WriteString(mutedStyle.Render("   like init.lua, .tmux.conf, .zshrc, etc.\n\n"))
+
+	b.WriteString(m.dirBrowser.View())
+	return b.String()
+}
+
+// resolveSelectedDirectory resolves a user-selected directory path
+func (m *Model) resolveSelectedDirectory(selectedPath string) tea.Cmd {
+	return func() tea.Msg {
+		// Get the target path from the dotfile manifest
+		targetPath := m.selectedDotfile.Paths[0] // Use first path for now
+
+		// Check if it's a file or directory
+		info, err := os.Stat(selectedPath)
+		if err != nil {
+			return errorMsg{fmt.Errorf("couldn't stat selected path %s: %w", selectedPath, err)}
+		}
+
+		fileMap := make(map[string]string)
+
+		if info.IsDir() {
+			// Walk the directory and add all files
+			err := filepath.Walk(selectedPath, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if !walkInfo.IsDir() {
+					// Get relative path from source
+					relPath, err := filepath.Rel(selectedPath, walkPath)
+					if err != nil {
+						return err
+					}
+					// Target path is the dotfile path + relative path
+					targetFullPath := filepath.Join(targetPath, relPath)
+					fileMap[walkPath] = targetFullPath
+				}
+				return nil
+			})
+			if err != nil {
+				return errorMsg{fmt.Errorf("couldn't walk directory %s: %w", selectedPath, err)}
+			}
+		} else {
+			// Single file
+			fileMap[selectedPath] = targetPath
+		}
+
+		return filesResolvedMsg{
+			structure: manifest.StructureUnknown, // User manually selected
+			fileMap:   fileMap,
+		}
+	}
 }
 
 // Run starts the TUI application

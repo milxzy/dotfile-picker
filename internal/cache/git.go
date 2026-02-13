@@ -16,10 +16,17 @@ import (
 // CloneRepo clones a git repository to the target directory
 // supports context cancellation for long-running operations
 func CloneRepo(ctx context.Context, url, targetDir string) error {
-	// check if the directory already exists
+	// check if the directory already exists and is a valid git repo
 	if _, err := os.Stat(targetDir); err == nil {
-		// repo already exists, try to pull instead
-		return PullRepo(ctx, targetDir)
+		// Check if it's actually a git repo (not just an empty directory)
+		if RepoExists(targetDir) {
+			// repo already exists, try to pull instead
+			return PullRepo(ctx, targetDir)
+		}
+		// Directory exists but is not a git repo - remove it and re-clone
+		if err := os.RemoveAll(targetDir); err != nil {
+			return fmt.Errorf("couldn't remove empty directory: %w", err)
+		}
 	}
 
 	// clone the repo

@@ -17,11 +17,12 @@
 
 ## data flow
 1. `config.Default()` builds paths inside `~/.config/dotfile-picker`
-2. `manifest.Fetcher` downloads registry json (or uses cache)
+2. `manifest` is loaded from local `configs/manifest.json` for fast startup
 3. `tui.Model` orchestrates user selections and hands off to:
-   - `cache.Manager` for git operations
+   - User selects category → creator → dotfile (no download yet)
+   - `cache.Manager` downloads repo only when dotfile is selected
+   - `manifest.DetectStructure` auto-detects repo layout
    - `deps.Checker` to warn about missing tools
-   - `manifest.DetectStructure` to map manifest paths to real ones
    - `diff.Engine` to preview changes
    - `applier.Applier` to write files after creating backups
 
@@ -63,11 +64,13 @@
 - handles both single files and entire directories based on the manifest structure info
 
 ### tui
-- files: `internal/tui/{app.go,models.go,styles.go,workflow_test.go}`
+- files: `internal/tui/{app.go,models.go,styles.go,dirbrowser.go,workflow_test.go}`
 - entry point `Run()` sets up Bubble Tea, loads config, ensures directories, creates services
 - `Model` holds all state: current screen, selected category/creator/dotfile, resolved files, diffs, dependency results
-- screen flow: Loading → Category → Creator → Dotfile → DependencyCheck/SubmoduleConfirm → Downloading → Diff → Complete (with error and plugin-manager branches)
-- views use Lip Gloss styles for titles, lists, and diff panes
+- screen flow (NEW): Loading → Category → Creator → Dotfile → Downloading (repo) → DependencyCheck (if needed) → TreeConfirm → PluginManagerDetect (nvim only) → Diff → Applying → Complete
+- auto-detects repo structure; only shows directory browser if detection fails
+- submodules are skipped entirely (modern plugin managers auto-install)
+- views use Lip Gloss styles for titles, lists, tree views, and diff panes
 
 ## binaries
 - `cmd/dotpicker/main.go`: thin wrapper running the tui
