@@ -53,6 +53,7 @@ note: git submodules are skipped automatically - modern plugin managers (lazy.nv
 - diff viewing upgrades (collapsible, scrollable view coming soon)
 - transplant mode to move configs between machines using the existing backup metadata
 - milestone markers will land as v2, v3, etc so changes stay grouped and folks can follow along
+- windows support is coming
 
 ## contributing
 - open an issue with context (what you tried, what broke)
