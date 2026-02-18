@@ -14,13 +14,13 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/milxzy/dot-generator/internal/applier"
-	"github.com/milxzy/dot-generator/internal/backup"
-	"github.com/milxzy/dot-generator/internal/cache"
-	"github.com/milxzy/dot-generator/internal/config"
-	"github.com/milxzy/dot-generator/internal/deps"
-	"github.com/milxzy/dot-generator/internal/diff"
-	"github.com/milxzy/dot-generator/internal/manifest"
+	"github.com/milxzy/dotfile-picker/internal/applier"
+	"github.com/milxzy/dotfile-picker/internal/backup"
+	"github.com/milxzy/dotfile-picker/internal/cache"
+	"github.com/milxzy/dotfile-picker/internal/config"
+	"github.com/milxzy/dotfile-picker/internal/deps"
+	"github.com/milxzy/dotfile-picker/internal/diff"
+	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
 func renderDiffSummary(results []*diff.Result) string {
@@ -1280,8 +1280,12 @@ func (m *Model) viewDirectoryBrowser() string {
 // resolveSelectedDirectory resolves a user-selected directory path
 func (m *Model) resolveSelectedDirectory(selectedPath string) tea.Cmd {
 	return func() tea.Msg {
-		// Get the target path from the dotfile manifest
-		targetPath := m.selectedDotfile.Paths[0] // Use first path for now
+		// Get the target path from the dotfile manifest.
+		// Guard against an empty Paths slice (malformed manifest entry).
+		if len(m.selectedDotfile.Paths) == 0 {
+			return errorMsg{fmt.Errorf("dotfile %q has no target paths defined", m.selectedDotfile.ID)}
+		}
+		targetPath := m.selectedDotfile.Paths[0]
 
 		// Check if it's a file or directory
 		info, err := os.Stat(selectedPath)

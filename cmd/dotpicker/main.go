@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/milxzy/dot-generator/internal/tui"
+	"github.com/milxzy/dotfile-picker/internal/tui"
 )
 
 func main() {

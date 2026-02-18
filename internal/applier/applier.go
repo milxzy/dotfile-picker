@@ -3,12 +3,12 @@ package applier
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/milxzy/dot-generator/internal/backup"
-	"github.com/milxzy/dot-generator/internal/manifest"
+	"github.com/milxzy/dotfile-picker/internal/backup"
+	"github.com/milxzy/dotfile-picker/internal/fsutil"
+	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
 // Applier handles copying dotfiles from cache to user's home
@@ -134,29 +134,7 @@ func (a *Applier) Rollback(results []*ApplyResult) error {
 	return nil
 }
 
-// copyFile copies a file from src to dst preserving permissions
+// copyFile copies a file from src to dst preserving permissions.
 func copyFile(src, dst string) error {
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	if _, err := io.Copy(destination, source); err != nil {
-		return err
-	}
-
-	// copy permissions
-	sourceInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	return os.Chmod(dst, sourceInfo.Mode())
+	return fsutil.CopyFile(src, dst)
 }

@@ -172,8 +172,13 @@ func IsEmptyDirectory(path string) (bool, error) {
 	return count == 0, nil
 }
 
-// ResolveSubmodulesRecursive recursively resolves submodules up to maxDepth
-// This handles nested submodules (submodules that themselves have submodules)
+// DefaultSubmoduleDepth is the recursion limit used by ResolveSubmodulesRecursive.
+// Pass this constant for the initial (top-level) call.
+const DefaultSubmoduleDepth = 3
+
+// ResolveSubmodulesRecursive recursively resolves submodules up to maxDepth.
+// Pass DefaultSubmoduleDepth for the initial (top-level) call.
+// This handles nested submodules (submodules that themselves have submodules).
 func ResolveSubmodulesRecursive(ctx context.Context, repoDir string, maxDepth int) error {
 	if maxDepth <= 0 {
 		return nil // Depth limit reached
@@ -189,8 +194,8 @@ func ResolveSubmodulesRecursive(ctx context.Context, repoDir string, maxDepth in
 		return nil // No submodules to resolve
 	}
 
-	// Only show message at the top level (maxDepth == 3 is the initial call)
-	if maxDepth == 3 {
+	// Only print the status message on the initial (top-level) call.
+	if maxDepth == DefaultSubmoduleDepth {
 		fmt.Fprintf(os.Stderr, "Resolving %d submodule(s)...\n", len(submodules))
 	}
 

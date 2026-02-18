@@ -1,6 +1,6 @@
-module github.com/milxzy/dot-generator
+module github.com/milxzy/dotfile-picker
 
-go 1.25.6
+go 1.24.2
 
 require (
 	github.com/charmbracelet/bubbles v0.21.1

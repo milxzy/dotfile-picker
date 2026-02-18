@@ -46,11 +46,9 @@ func (f *Fetcher) Fetch(ctx context.Context) (*Manifest, error) {
 		return cached, nil
 	}
 
-	// save to cache for next time
+	// save to cache for next time (non-critical; log and continue)
 	if err := f.saveCache(manifest); err != nil {
-		// not critical, just log and continue
-		// (we should add proper logging later)
-		_ = err
+		fmt.Fprintf(os.Stderr, "dotfile-picker: warning: couldn't save manifest cache: %v\n", err)
 	}
 
 	return manifest, nil

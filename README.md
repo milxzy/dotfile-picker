@@ -11,8 +11,14 @@
 - the amount of hours i spent tweaking my dots when i was younger
 
 
+## demo
+
+<!-- add a GIF or screenshot here once you have a recording -->
+<!-- recommended: use vhs (https://github.com/charmbracelet/vhs) or asciinema to record -->
+<!-- example: ![dotfile picker demo](demo.gif) -->
+
 ## install
-1. ensure go 1.25 or newer is on your path (`go version` should work)
+1. ensure go 1.23 or newer is on your path (`go version` should work)
 2. clone the repo: `git clone git@github.com:milxzy/dotfile-picker.git && cd dotfile-picker`
 3. build the tui: `make build` (drops a `dotpicker` binary into `bin/`)
 4. optional system install: `sudo make install` to copy the binary to `/usr/local/bin`

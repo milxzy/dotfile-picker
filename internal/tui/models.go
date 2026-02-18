@@ -2,9 +2,9 @@
 package tui
 
 import (
-	"github.com/milxzy/dot-generator/internal/applier"
-	"github.com/milxzy/dot-generator/internal/diff"
-	"github.com/milxzy/dot-generator/internal/manifest"
+	"github.com/milxzy/dotfile-picker/internal/applier"
+	"github.com/milxzy/dotfile-picker/internal/diff"
+	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
 // Screen represents different views in the app
@@ -102,10 +102,5 @@ type (
 	// directorySelectedMsg sent when user selects a directory from browser
 	directorySelectedMsg struct {
 		selectedPath string
-	}
-
-	// rootSelectedMsg sent when user selects the root directory for their platform
-	rootSelectedMsg struct {
-		rootPath string
 	}
 )

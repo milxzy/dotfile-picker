@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/milxzy/dot-generator/internal/applier"
-	"github.com/milxzy/dot-generator/internal/backup"
-	"github.com/milxzy/dot-generator/internal/cache"
-	"github.com/milxzy/dot-generator/internal/config"
-	"github.com/milxzy/dot-generator/internal/manifest"
+	"github.com/milxzy/dotfile-picker/internal/applier"
+	"github.com/milxzy/dotfile-picker/internal/backup"
+	"github.com/milxzy/dotfile-picker/internal/cache"
+	"github.com/milxzy/dotfile-picker/internal/config"
+	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
 // TestWorkflowComponents tests that all workflow components integrate properly

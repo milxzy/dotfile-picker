@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/milxzy/dot-generator/internal/config"
-	"github.com/milxzy/dot-generator/internal/manifest"
+	"github.com/milxzy/dotfile-picker/internal/config"
+	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
 func main() {

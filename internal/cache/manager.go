@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/milxzy/dot-generator/internal/manifest"
+	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
 // Manager handles caching and syncing of dotfile repos

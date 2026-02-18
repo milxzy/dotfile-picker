@@ -4,10 +4,11 @@ package backup
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/milxzy/dotfile-picker/internal/fsutil"
 )
 
 // Manager handles backup operations
@@ -51,7 +52,8 @@ func (m *Manager) Backup(originalPath, creatorID, dotfileID string) (*BackupMeta
 	)
 
 	// preserve directory structure in backup
-	relativePath, err := filepath.Rel(os.Getenv("HOME"), originalPath)
+	homeDir, _ := os.UserHomeDir()
+	relativePath, err := filepath.Rel(homeDir, originalPath)
 	if err != nil {
 		// if not under home, just use the filename
 		relativePath = filepath.Base(originalPath)
@@ -77,10 +79,9 @@ func (m *Manager) Backup(originalPath, creatorID, dotfileID string) (*BackupMeta
 		DotfileID:    dotfileID,
 	}
 
-	// save metadata
+	// save metadata (non-critical; log and continue)
 	if err := m.saveMetadata(metadata); err != nil {
-		// not critical, but log it
-		_ = err
+		fmt.Fprintf(os.Stderr, "dotfile-picker: warning: couldn't save backup metadata: %v\n", err)
 	}
 
 	return metadata, nil
@@ -133,6 +134,11 @@ func (m *Manager) Restore(backupPath, originalPath string) error {
 func (m *Manager) saveMetadata(metadata *BackupMetadata) error {
 	metadataPath := m.getMetadataPath()
 
+	// ensure the base backup directory exists before writing the manifest
+	if err := os.MkdirAll(m.backupDir, 0755); err != nil {
+		return fmt.Errorf("couldn't create backup directory: %w", err)
+	}
+
 	// load existing metadata
 	var allBackups []*BackupMetadata
 	if data, err := os.ReadFile(metadataPath); err == nil {
@@ -156,29 +162,7 @@ func (m *Manager) getMetadataPath() string {
 	return filepath.Join(m.backupDir, "backup_manifest.json")
 }
 
-// copyFile copies a file from src to dst
+// copyFile copies a file from src to dst preserving permissions.
 func copyFile(src, dst string) error {
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	if _, err := io.Copy(destination, source); err != nil {
-		return err
-	}
-
-	// copy permissions
-	sourceInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	return os.Chmod(dst, sourceInfo.Mode())
+	return fsutil.CopyFile(src, dst)
 }
