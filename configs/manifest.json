@@ -20,6 +20,11 @@
       "id": "minimalists",
       "name": "minimalist setups",
       "description": "clean, simple, distraction-free configurations"
+    },
+    {
+      "id": "emacs-enthusiasts",
+      "name": "emacs power users",
+      "description": "comprehensive emacs configurations from experienced users"
     }
   ],
   "creators": [
@@ -154,6 +159,82 @@
           "description": "zsh shell configuration",
           "paths": [".zshrc"],
           "dependencies": ["zsh"]
+        }
+      ]
+    },
+    {
+      "id": "rexim",
+      "name": "rexim",
+      "github": "rexim",
+      "repo": "https://github.com/rexim/dotfiles",
+      "categories": ["emacs-enthusiasts", "tiling-wm", "terminal-lovers", "vim-wizards"],
+      "description": "streamer and systems programmer with emacs-centric workflow and i3wm setup",
+      "dotfiles": [
+        {
+          "id": "emacs",
+          "name": "emacs",
+          "description": "comprehensive emacs setup with custom language modes, snippets for 21+ languages, and org-mode",
+          "paths": [".emacs", ".emacs.custom.el", ".emacs.rc", ".emacs.local", ".emacs.snippets"],
+          "dependencies": ["emacs"]
+        },
+        {
+          "id": "i3",
+          "name": "i3 window manager",
+          "description": "full-featured i3wm config with custom keybindings and status bar",
+          "paths": ["i3", ".i3status.conf"],
+          "dependencies": ["i3-wm", "i3status"]
+        },
+        {
+          "id": "vim",
+          "name": "vim",
+          "description": "minimal vim config with russian keyboard support and iosevka font",
+          "paths": [".vimrc"],
+          "dependencies": ["vim"]
+        },
+        {
+          "id": "tmux",
+          "name": "tmux",
+          "description": "ultra-minimal tmux with emacs-style keybindings (prefix: C-x)",
+          "paths": [".tmux.conf"],
+          "dependencies": ["tmux"]
+        },
+        {
+          "id": "urxvt",
+          "name": "urxvt terminal",
+          "description": "rxvt-unicode terminal config with gruber-darker colorscheme and iosevka font",
+          "paths": [".Xresources", ".urxvt"],
+          "dependencies": ["rxvt-unicode"]
+        },
+        {
+          "id": "git",
+          "name": "git",
+          "description": "basic git config with merge conflict style and aliases",
+          "paths": [".gitconfig"],
+          "dependencies": ["git"]
+        }
+      ]
+    },
+    {
+      "id": "magicalbat",
+      "name": "Magicalbat",
+      "github": "Magicalbat",
+      "repo": "https://github.com/Magicalbat/Configs",
+      "categories": ["minimalists", "vim-wizards"],
+      "description": "clean, beginner-friendly neovim and tmux setup following tutorial best practices",
+      "dotfiles": [
+        {
+          "id": "nvim",
+          "name": "neovim",
+          "description": "lua-based neovim config with lsp, treesitter, telescope, and lazy.nvim",
+          "paths": ["nvim"],
+          "dependencies": ["neovim"]
+        },
+        {
+          "id": "tmux",
+          "name": "tmux",
+          "description": "tmux config with vim-style pane navigation (prefix: C-w)",
+          "paths": [".tmux.conf"],
+          "dependencies": ["tmux"]
         }
       ]
     }
