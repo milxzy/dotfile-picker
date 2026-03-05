@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/milxzy/dotfile-picker/internal/backup"
+	"github.com/milxzy/dotfile-picker/internal/config"
 	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
@@ -15,9 +16,16 @@ func setupApplier(t *testing.T) (*Applier, string) {
 	dir := t.TempDir()
 	mgr := backup.NewManager(filepath.Join(dir, "backups"))
 
+	cfg := &config.Config{
+		DotfilesRoot:     filepath.Join(dir, ".config"),
+		AutoXDGDetection: false, // disabled by default for existing tests
+		XDGDirectories:   []string{"nvim", "vim", "kitty"},
+	}
+
 	a := &Applier{
 		backupManager: mgr,
 		homeDir:       dir,
+		config:        cfg,
 	}
 	return a, dir
 }
@@ -112,7 +120,12 @@ func TestApply_MissingSource(t *testing.T) {
 }
 
 func TestResolveTargetPath(t *testing.T) {
-	a := &Applier{homeDir: "/home/user"}
+	cfg := &config.Config{
+		DotfilesRoot:     "/home/user/.config",
+		AutoXDGDetection: false, // disabled for basic tests
+		XDGDirectories:   []string{"nvim", "vim"},
+	}
+	a := &Applier{homeDir: "/home/user", config: cfg}
 
 	cases := []struct {
 		input    string
@@ -130,6 +143,52 @@ func TestResolveTargetPath(t *testing.T) {
 		if got != tc.expected {
 			t.Errorf("ResolveTargetPath(%q): got %q, want %q", tc.input, got, tc.expected)
 		}
+	}
+}
+
+func TestResolveTargetPath_XDGDetection(t *testing.T) {
+	cfg := &config.Config{
+		DotfilesRoot:     "/home/user/.config",
+		AutoXDGDetection: true, // enabled for XDG tests
+		XDGDirectories:   []string{"nvim", "vim", "kitty"},
+	}
+	a := &Applier{homeDir: "/home/user", config: cfg}
+
+	cases := []struct {
+		input    string
+		expected string
+		desc     string
+	}{
+		{"nvim", "/home/user/.config/nvim", "nvim should go to .config"},
+		{"nvim/init.lua", "/home/user/.config/nvim/init.lua", "nvim subpath should go to .config"},
+		{"vim/vimrc", "/home/user/.config/vim/vimrc", "vim should go to .config"},
+		{"kitty/kitty.conf", "/home/user/.config/kitty/kitty.conf", "kitty should go to .config"},
+		{".tmux.conf", "/home/user/.tmux.conf", "explicit dotfile stays in home"},
+		{".config/nvim", "/home/user/.config/nvim", "explicit .config path stays as-is"},
+		{"unknown/path", "/home/user/unknown/path", "unknown dirs go to home"},
+	}
+
+	for _, tc := range cases {
+		got := a.ResolveTargetPath(tc.input, a.homeDir)
+		if got != tc.expected {
+			t.Errorf("%s - ResolveTargetPath(%q): got %q, want %q", tc.desc, tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestResolveTargetPath_CustomConfigRoot(t *testing.T) {
+	cfg := &config.Config{
+		DotfilesRoot:     "/home/user/dotfiles",
+		AutoXDGDetection: true,
+		XDGDirectories:   []string{"nvim"},
+	}
+	a := &Applier{homeDir: "/home/user", config: cfg}
+
+	got := a.ResolveTargetPath("nvim/init.lua", a.homeDir)
+	expected := "/home/user/dotfiles/nvim/init.lua"
+
+	if got != expected {
+		t.Errorf("Custom config root: got %q, want %q", got, expected)
 	}
 }
 

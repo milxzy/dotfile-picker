@@ -20,32 +20,35 @@ var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primaryColor).
-			MarginBottom(1)
+			MarginBottom(2)
 
 	// subtitle for section headers
 	subtitleStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor).
 			Bold(true).
-			MarginTop(1)
+			MarginTop(1).
+			MarginBottom(1)
 
 	// normal text
 	textStyle = lipgloss.NewStyle()
 
 	// muted text for descriptions
 	mutedStyle = lipgloss.NewStyle().
-			Foreground(mutedColor).
-			Italic(true)
+			Foreground(mutedColor)
 
 	// selected item in a list
 	selectedStyle = lipgloss.NewStyle().
 			Foreground(primaryColor).
+			Background(lipgloss.Color("237")).
 			Bold(true).
-			PaddingLeft(2)
+			PaddingLeft(4).
+			PaddingRight(4)
 
 	// unselected item in a list
 	unselectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("250")).
-			PaddingLeft(2)
+			PaddingLeft(4).
+			PaddingRight(4)
 
 	// border style for boxes
 	borderStyle = lipgloss.NewStyle().
@@ -68,7 +71,7 @@ var (
 	// help text at the bottom
 	helpStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
-			MarginTop(1)
+			MarginTop(2)
 
 	// status bar at the top
 	statusBarStyle = lipgloss.NewStyle().
@@ -103,7 +106,8 @@ var (
 	progressBarStyle = lipgloss.NewStyle().
 				Foreground(primaryColor)
 
-	contentWidth = 100 // default content width for centering
+	contentWidth    = 100 // default content width for centering
+	contentMaxWidth = 120 // maximum width before responsive scaling
 )
 
 // formatTitle renders a title with the app name
@@ -156,6 +160,25 @@ func centerContent(totalWidth int, content string) string {
 		lines[i] = pad + line
 	}
 	return strings.Join(lines, "\n")
+}
+
+// centerContentBoth centers content both vertically and horizontally in the terminal
+func centerContentBoth(totalWidth, totalHeight int, content string) string {
+	// First, apply horizontal centering
+	lines := strings.Split(content, "\n")
+	contentHeight := len(lines)
+
+	// Calculate vertical padding
+	if totalHeight > contentHeight {
+		verticalPadding := (totalHeight - contentHeight) / 2
+		if verticalPadding > 0 {
+			topPadding := strings.Repeat("\n", verticalPadding)
+			content = topPadding + content
+		}
+	}
+
+	// Apply horizontal centering
+	return centerContent(totalWidth, content)
 }
 
 // formatDiffLine formats a diff line based on its prefix

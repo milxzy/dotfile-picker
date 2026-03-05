@@ -25,10 +25,13 @@ func TestWorkflowComponents(t *testing.T) {
 
 	// create test config
 	cfg := &config.Config{
-		CacheDir:  cacheDir,
-		BackupDir: backupDir,
-		ConfigDir: configDir,
-		LogDir:    logDir,
+		CacheDir:         cacheDir,
+		BackupDir:        backupDir,
+		ConfigDir:        configDir,
+		LogDir:           logDir,
+		DotfilesRoot:     filepath.Join(tmpDir, ".config"),
+		AutoXDGDetection: true,
+		XDGDirectories:   []string{"nvim", "vim"},
 	}
 
 	if err := cfg.EnsureDirectories(); err != nil {
@@ -38,7 +41,7 @@ func TestWorkflowComponents(t *testing.T) {
 	// create managers
 	cacheManager := cache.NewManager(cacheDir)
 	backupManager := backup.NewManager(backupDir)
-	applierInstance, err := applier.NewApplier(backupManager)
+	applierInstance, err := applier.NewApplier(backupManager, cfg)
 	if err != nil {
 		t.Fatalf("couldn't create applier: %v", err)
 	}

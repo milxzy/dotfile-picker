@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/milxzy/dotfile-picker/internal/fsutil"
+	"github.com/milxzy/dotfile-picker/internal/logger"
 )
 
 // Manager handles backup operations
@@ -38,9 +39,12 @@ func NewManager(backupDir string) *Manager {
 func (m *Manager) Backup(originalPath, creatorID, dotfileID string) (*BackupMetadata, error) {
 	// check if the original file exists
 	if _, err := os.Stat(originalPath); os.IsNotExist(err) {
+		logger.Debug("    No existing file to backup: %s", originalPath)
 		// nothing to backup
 		return nil, nil
 	}
+
+	logger.Debug("    Creating backup for: %s", originalPath)
 
 	// create a timestamped backup filename
 	timestamp := time.Now()
@@ -60,14 +64,17 @@ func (m *Manager) Backup(originalPath, creatorID, dotfileID string) (*BackupMeta
 	}
 
 	backupPath := filepath.Join(m.backupDir, filepath.Dir(relativePath), backupName)
+	logger.Debug("    Backup destination: %s", backupPath)
 
 	// ensure backup directory exists
 	if err := os.MkdirAll(filepath.Dir(backupPath), 0755); err != nil {
+		logger.Error("    Failed to create backup directory: %v", err)
 		return nil, fmt.Errorf("couldn't create backup directory: %w", err)
 	}
 
 	// copy the file
 	if err := copyFile(originalPath, backupPath); err != nil {
+		logger.Error("    Failed to copy file for backup: %v", err)
 		return nil, fmt.Errorf("couldn't backup file: %w", err)
 	}
 
@@ -81,9 +88,11 @@ func (m *Manager) Backup(originalPath, creatorID, dotfileID string) (*BackupMeta
 
 	// save metadata (non-critical; log and continue)
 	if err := m.saveMetadata(metadata); err != nil {
+		logger.Warn("    Couldn't save backup metadata: %v", err)
 		fmt.Fprintf(os.Stderr, "dotfile-picker: warning: couldn't save backup metadata: %v\n", err)
 	}
 
+	logger.Debug("    ✓ Backup created successfully")
 	return metadata, nil
 }
 

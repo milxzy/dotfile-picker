@@ -20,6 +20,7 @@ import (
 	"github.com/milxzy/dotfile-picker/internal/config"
 	"github.com/milxzy/dotfile-picker/internal/deps"
 	"github.com/milxzy/dotfile-picker/internal/diff"
+	"github.com/milxzy/dotfile-picker/internal/logger"
 	"github.com/milxzy/dotfile-picker/internal/manifest"
 )
 
@@ -124,7 +125,7 @@ func New(ctx context.Context) (*Model, error) {
 	fetcher := manifest.NewFetcher(cfg.ManifestURL, cfg.ManifestCachePath)
 	cacheManager := cache.NewManager(cfg.CacheDir)
 	backupManager := backup.NewManager(cfg.BackupDir)
-	applierInstance, err := applier.NewApplier(backupManager)
+	applierInstance, err := applier.NewApplier(backupManager, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +428,7 @@ func (m *Model) View() string {
 
 // viewLoading shows the loading screen
 func (m *Model) viewLoading() string {
-	return centerContent(m.width, fmt.Sprintf("\n\n   %s loading manifest...\n\n", m.spinner.View()))
+	return centerContentBoth(m.width, m.height, fmt.Sprintf("%s loading manifest...", m.spinner.View()))
 }
 
 // viewCategories shows the category selection
@@ -435,14 +436,14 @@ func (m *Model) viewCategories() string {
 	var b strings.Builder
 
 	b.WriteString(formatTitle("dotfile picker"))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 	b.WriteString(formatSubtitle("select a category"))
 	b.WriteString("\n\n")
 	b.WriteString(m.categoryList.View())
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 	b.WriteString(formatHelp("enter: select • q: quit"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewCreators shows creators in selected category
@@ -454,10 +455,10 @@ func (m *Model) viewCreators() string {
 	b.WriteString(formatSubtitle(m.selectedCategory.Name))
 	b.WriteString("\n\n")
 	b.WriteString(m.creatorList.View())
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 	b.WriteString(formatHelp("enter: select • esc: back • q: quit"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewDotfiles shows dotfiles from selected creator
@@ -469,12 +470,12 @@ func (m *Model) viewDotfiles() string {
 	b.WriteString(formatSubtitle(m.selectedCreator.Name + "'s dotfiles"))
 	b.WriteString("\n\n")
 	b.WriteString(m.dotfileList.View())
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 	b.WriteString(formatHelp("enter: apply • esc: back • q: quit"))
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("note: applying will create backups of your existing configs"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewTreeConfirm shows the tree structure of files that will be applied
@@ -532,26 +533,23 @@ func (m *Model) viewTreeConfirm() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("note: backups will be created before any files are modified"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewDownloading shows the downloading screen with dynamic status
 func (m *Model) viewDownloading() string {
 	var b strings.Builder
 
-	b.WriteString(formatTitle("dotfile picker"))
-	b.WriteString("\n\n")
-
 	// Show the dynamic status message if available
 	if m.statusMsg != "" {
-		b.WriteString(fmt.Sprintf("   %s %s...\n\n", m.spinner.View(), m.statusMsg))
+		b.WriteString(fmt.Sprintf("%s %s...", m.spinner.View(), m.statusMsg))
 	} else {
-		b.WriteString(fmt.Sprintf("   %s processing...\n\n", m.spinner.View()))
+		b.WriteString(fmt.Sprintf("%s processing...", m.spinner.View()))
 	}
+	b.WriteString("\n\n")
+	b.WriteString(mutedStyle.Render("this may take a moment..."))
 
-	b.WriteString(mutedStyle.Render("   this may take a moment..."))
-
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewDiff shows the diff screen
@@ -567,7 +565,7 @@ func (m *Model) viewDiff() string {
 		b.WriteString(mutedStyle.Render("no changes to show"))
 	} else {
 		b.WriteString(renderDiffSummary(m.diffResults))
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 		b.WriteString(mutedStyle.Render("Detailed diff viewer coming in the next release."))
 	}
 
@@ -576,7 +574,7 @@ func (m *Model) viewDiff() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("note: your existing configs will be backed up before applying"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewDependencyCheck shows dependency status
@@ -616,11 +614,11 @@ func (m *Model) viewDependencyCheck() string {
 		b.WriteString(formatHelp("i: install missing • s: skip and continue • esc: cancel"))
 	} else {
 		b.WriteString(formatSuccess("all dependencies installed!"))
-		b.WriteString("\n\n")
+		b.WriteString("\n")
 		b.WriteString(formatHelp("enter: continue • esc: cancel"))
 	}
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewPluginManagerDetect shows plugin manager installation prompt
@@ -630,12 +628,13 @@ func (m *Model) viewPluginManagerDetect() string {
 	b.WriteString(formatTitle("dotfile picker"))
 	b.WriteString("\n\n")
 	b.WriteString(fmt.Sprintf("This neovim config uses %s for plugins.\n\n", m.pluginManager.Name))
-	b.WriteString("Would you like to install it?\n")
+	b.WriteString("Would you like to install it?\n\n")
 	b.WriteString(fmt.Sprintf("Install location: %s\n\n", m.pluginManager.InstallPath))
-	b.WriteString(mutedStyle.Render("After installing, you may need to run plugin installation commands.\n\n"))
+	b.WriteString(mutedStyle.Render("After installing, you may need to run plugin installation commands."))
+	b.WriteString("\n")
 	b.WriteString(formatHelp("y: install • n: skip • q: quit"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // Note: viewSubmoduleConfirm removed - submodules are now skipped entirely
@@ -669,12 +668,13 @@ func (m *Model) viewComplete() string {
 
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("Summary: %d files applied, %d backups created\n", filesApplied, backupsCreated))
-	b.WriteString(fmt.Sprintf("Backups stored in: %s\n\n", m.cfg.BackupDir))
-
-	b.WriteString(mutedStyle.Render("tip: backups are kept forever, you can manually restore if needed\n\n"))
+	b.WriteString(fmt.Sprintf("Backups stored in: %s\n", m.cfg.BackupDir))
+	b.WriteString("\n")
+	b.WriteString(mutedStyle.Render("tip: backups are kept forever, you can manually restore if needed"))
+	b.WriteString("\n")
 	b.WriteString(formatHelp("esc: back to dotfiles • q: quit"))
 
-	return centerContent(m.width, b.String())
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // viewError shows an error
@@ -687,17 +687,17 @@ func (m *Model) viewError() string {
 	// Handle nil error
 	if m.err == nil {
 		b.WriteString(formatError("An unknown error occurred"))
-		b.WriteString("\n\n")
+		b.WriteString("\n")
 		b.WriteString(formatHelp("esc: back • q: quit"))
-		return b.String()
+		return centerContentBoth(m.width, m.height, b.String())
 	}
 
 	errMsg := m.err.Error()
 	b.WriteString(formatError(errMsg))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 	b.WriteString(formatHelp("esc: back • q: quit"))
 
-	return b.String()
+	return centerContentBoth(m.width, m.height, b.String())
 }
 
 // handleEnter processes enter key based on current screen
@@ -807,15 +807,24 @@ func (m *Model) downloadRepo() tea.Msg {
 
 // detectStructure detects the repo structure and resolves file paths
 func (m *Model) detectStructure() tea.Msg {
+	logger.Section("Starting File Path Detection")
+	logger.Info("Creator: %s", m.selectedCreator.Name)
+	logger.Info("Dotfile: %s", m.selectedDotfile.Name)
+	logger.Info("Requested paths: %v", m.selectedDotfile.Paths)
+
 	// Always use repo root - we auto-detect structure now
 	searchPath := m.cache.GetRepoPath(m.selectedCreator.ID)
+	logger.Info("Repository path: %s", searchPath)
+
 	structure := manifest.DetectStructure(searchPath)
 
 	// resolve file paths
 	fileMap := make(map[string]string)
 	for _, path := range m.selectedDotfile.Paths {
+		logger.Debug("Processing requested path: %s", path)
 		sourcePath, found := manifest.ResolveFilePath(searchPath, path, structure)
 		if !found {
+			logger.Error("Path not found: %s - triggering directory browser", path)
 			// Return pathNotFoundMsg to trigger directory browser
 			return pathNotFoundMsg{
 				requestedPath: path,
@@ -826,10 +835,12 @@ func (m *Model) detectStructure() tea.Msg {
 		// check if it's a file or directory
 		info, err := os.Stat(sourcePath)
 		if err != nil {
+			logger.Error("Failed to stat %s: %v", sourcePath, err)
 			return errorMsg{fmt.Errorf("couldn't stat %s: %w", sourcePath, err)}
 		}
 
 		if info.IsDir() {
+			logger.Info("Source is a directory, walking to find all files...")
 			// for directories, we'll walk and add all files
 			filesFound := 0
 			err := filepath.Walk(sourcePath, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
@@ -839,6 +850,7 @@ func (m *Model) detectStructure() tea.Msg {
 
 				// Skip .git directories entirely (both file placeholders and real git dirs)
 				if walkInfo.IsDir() && filepath.Base(walkPath) == ".git" {
+					logger.Debug("  Skipping .git directory: %s", walkPath)
 					return filepath.SkipDir
 				}
 
@@ -852,15 +864,20 @@ func (m *Model) detectStructure() tea.Msg {
 					targetPath := filepath.Join(path, relPath)
 					fileMap[walkPath] = targetPath
 					filesFound++
+					logger.Debug("  Found file: %s → %s", relPath, targetPath)
 				}
 				return nil
 			})
 			if err != nil {
+				logger.Error("Failed to walk directory %s: %v", sourcePath, err)
 				return errorMsg{fmt.Errorf("couldn't walk directory %s: %w", sourcePath, err)}
 			}
 
+			logger.Info("Found %d files in directory", filesFound)
+
 			// If directory is empty (or only has .git file), try to resolve as submodule
 			if filesFound == 0 {
+				logger.Warn("Directory is empty, checking for submodules...")
 				// Check if this might be a submodule
 				isEmpty, err := cache.IsEmptyDirectory(sourcePath)
 				if err == nil && isEmpty {
@@ -869,7 +886,9 @@ func (m *Model) detectStructure() tea.Msg {
 					ctx := context.Background()
 					repoPath := m.cache.GetRepoPath(m.selectedCreator.ID)
 
+					logger.Info("Attempting to resolve submodules...")
 					if err := cache.ResolveSubmodulesRecursive(ctx, repoPath, 3); err == nil {
+						logger.Info("Submodules resolved, re-walking directory...")
 						// Submodules resolved! Re-walk the directory
 						filesFound = 0
 						err := filepath.Walk(sourcePath, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
@@ -890,17 +909,23 @@ func (m *Model) detectStructure() tea.Msg {
 								targetPath := filepath.Join(path, relPath)
 								fileMap[walkPath] = targetPath
 								filesFound++
+								logger.Debug("  Found file after submodule resolution: %s → %s", relPath, targetPath)
 							}
 							return nil
 						})
 						if err != nil {
+							logger.Error("Failed to walk submodule directory: %v", err)
 							return errorMsg{fmt.Errorf("couldn't walk submodule directory %s: %w", sourcePath, err)}
 						}
+						logger.Info("Found %d files after submodule resolution", filesFound)
+					} else {
+						logger.Warn("Submodule resolution failed: %v", err)
 					}
 				}
 
 				// If still empty after trying submodule resolution, show browser
 				if filesFound == 0 {
+					logger.Error("Directory still empty after submodule check - triggering directory browser")
 					return pathNotFoundMsg{
 						requestedPath: path,
 						repoPath:      searchPath,
@@ -908,10 +933,14 @@ func (m *Model) detectStructure() tea.Msg {
 				}
 			}
 		} else {
+			logger.Info("Source is a single file: %s → %s", sourcePath, path)
 			// single file
 			fileMap[sourcePath] = path
 		}
 	}
+
+	logger.Section("File Map Resolution Complete")
+	logger.FileMap(fileMap)
 
 	return filesResolvedMsg{
 		structure: structure,

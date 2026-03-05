@@ -30,6 +30,18 @@ type Config struct {
 
 	// LogDir is where we write debug logs
 	LogDir string
+
+	// DotfilesRoot is where XDG config directories go (default: ~/.config)
+	DotfilesRoot string
+
+	// AutoXDGDetection enables smart detection of XDG config directories
+	// When true, paths like "nvim" → "$DotfilesRoot/nvim"
+	// When false, paths are used as-is: "nvim" → "~/nvim"
+	AutoXDGDetection bool
+
+	// XDGDirectories is the list of directory names to auto-detect
+	// Only used when AutoXDGDetection is true
+	XDGDirectories []string
 }
 
 // Default returns a config with sane defaults
@@ -56,7 +68,25 @@ func Default() (*Config, error) {
 		ManifestCachePath: filepath.Join(baseDir, "manifest.json"),
 		RefreshInterval:   7 * 24 * time.Hour, // weekly refresh
 		LogDir:            filepath.Join(baseDir, "logs"),
+		DotfilesRoot:      configHome, // defaults to ~/.config or $XDG_CONFIG_HOME
+		AutoXDGDetection:  true,       // enabled by default for smart behavior
+		XDGDirectories:    defaultXDGDirs(),
 	}, nil
+}
+
+// defaultXDGDirs returns the default list of known XDG config directories
+// These directories will be automatically placed in DotfilesRoot when AutoXDGDetection is enabled
+func defaultXDGDirs() []string {
+	return []string{
+		"nvim", "vim", // editors
+		"kitty", "alacritty", // terminals
+		"tmux",        // multiplexer (when in dir form)
+		"fish", "zsh", // shells (when in dir form)
+		"git",      // vcs
+		"starship", // prompt
+		"helix",    // editor
+		"wezterm",  // terminal
+	}
 }
 
 // EnsureDirectories creates all necessary directories
